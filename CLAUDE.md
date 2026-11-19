@@ -42,6 +42,8 @@ Overlay: `CaptionPipeline` (App/) liga `AudioSource` → `TranscriptionEngine` �
 
 Tradução: o `CaptionTranslator` (Translation/) observa o `CaptionStore` e decide o que traduzir (confirmados + blocos provisórios de parciais com ≥6 palavras, a cada +4 palavras ou numa pausa de 0,6 s), cancela pedidos obsoletos por segmento e usa uma cache LRU. A tradução provisória fica no segmento até chegar a do texto confirmado. Segmentação em frases: confirmados seguidos sem pontuação final (mesmo idioma, até 30 palavras) são traduzidos juntos; a tradução fica no primeiro segmento e os outros ficam com `isTranslationMerged`. `AppleTranslationEngine` usa `TranslationSession(installedSource:target:)` (fora do SwiftUI, só idiomas instalados); o download dos idiomas faz-se em Definições › Tradução com `.translationTask` + `prepareTranslation()`. Atenção: a estratégia `.lowLatency` é um download à parte e só é usada se estiver instalada. `DeepLEngine` e `LLMTranslationEngine` são esqueletos (chaves no Keychain via `KeychainStore`).
 
+Barra de menus e atalhos: o ícone (`MenuBarLabel`) segue `AppState.menuBarState` (parado / a preparar / a ouvir / a traduzir / problema) e mostra o idioma detetado. Atalhos globais (`GlobalHotKeys`) com `RegisterEventHotKey` do Carbon (não pede permissão de Acessibilidade); por defeito ⌃⌥L liga/desliga e ⌃⌥M alterna o modo. As Definições têm as abas Geral (login via `SMAppService`, atalhos), Idiomas, Aparência, Motor e Avançado; o menu abre uma aba com `SettingsTab.select`. O `CaptionPipeline` avisa quando não há som há `silenceWarningDelay` segundos (`AudioClock.lastSound`).
+
 Estrutura de pastas: `App/`, `Audio/`, `Transcription/`, `Translation/`, `Overlay/`, `Models/`, `Settings/`.
 
 ## Modelo de dados
@@ -73,7 +75,7 @@ struct CaptionSegment: Identifiable, Sendable {
 - Correr: `open build/Build/Products/Debug/Tradutor.app`
 - Testes (Swift Testing, em `TradutorTests/`): `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -derivedDataPath build test`
 - Testes de integração (motores reais + fala do `say`; descarregam modelos): prefixar com `TEST_RUNNER_TRADUTOR_INTEGRATION=1` (e opcionalmente `TEST_RUNNER_TRADUTOR_WHISPER_MODEL=small|large`) e usar `-only-testing:TradutorTests/TranscriptionIntegrationTests`.
-- Argumentos de debug (só em Debug): `open build/Build/Products/Debug/Tradutor.app --args -TradutorAutoStart YES` inicia as legendas; `-TradutorAudioFile /caminho/fala.aiff` usa um ficheiro em vez do áudio do sistema (não precisa de permissão); `-TradutorEditOverlay YES` abre no modo de ajuste da posição; `-showLatency YES` mostra a latência no overlay.
+- Argumentos de debug (só em Debug): `open build/Build/Products/Debug/Tradutor.app --args -TradutorAutoStart YES` inicia as legendas; `-TradutorAudioFile /caminho/fala.aiff` usa um ficheiro em vez do áudio do sistema (não precisa de permissão); `-TradutorEditOverlay YES` abre no modo de ajuste da posição; `-showLatency YES` mostra a latência no overlay. Definições numéricas por argumento têm de ir como plist (ex.: `-silenceWarningDelay '<real>10</real>'`).
 - Se um teste falhar, o XCTest pode ficar vários minutos a simbolizar a pilha (o binário de debug com WhisperKit é grande). Usar `timeout` nos comandos de teste.
 - Assinatura ad-hoc (sem Apple ID/equipa configurada): a permissão de Gravação de Ecrã pode ter de ser dada de novo após cada build.
 

@@ -10,6 +10,8 @@ final class OverlayModel {
     var isEditing = false
     /// Mensagem de estado (a carregar o modelo, erros…), mostrada em vez das legendas.
     var message: String?
+    /// Aviso curto por cima das legendas (ex.: o modo mudou pelo atalho de teclado).
+    var notice: String?
 }
 
 struct OverlayView: View {
@@ -73,6 +75,18 @@ struct OverlayView: View {
                     .padding(.top, 1)
             }
         }
+        .overlay {
+            if let notice = model.notice, !model.isEditing {
+                Text(notice)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(.black.opacity(0.85), in: Capsule())
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.notice)
         .contentShape(Rectangle())
         .gesture(
             // Coordenadas globais: as locais mudariam enquanto o próprio painel se move.

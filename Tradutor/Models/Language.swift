@@ -47,6 +47,10 @@ enum SourceLanguage: Hashable, Sendable {
         case .fixed(let language): language.displayName
         }
     }
+
+    var fixedLanguage: Language? {
+        if case .fixed(let language) = self { language } else { nil }
+    }
 }
 
 extension SourceLanguage: RawRepresentable {

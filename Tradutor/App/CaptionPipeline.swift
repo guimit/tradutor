@@ -20,6 +20,10 @@ final class CaptionPipeline {
     /// Problema de tradução que não impede as legendas (ex.: idiomas por descarregar).
     private(set) var translationIssue: String?
     private(set) var latency = CaptionLatency()
+    /// Idioma da última fala transcrita (o detetado, com origem Auto).
+    private(set) var detectedLanguage: Language?
+    /// Segundos sem som no áudio do sistema, a partir de `silenceWarningDelay`; `nil` se houver som.
+    private(set) var silentFor: Int?
     let store: CaptionStore
 
     @ObservationIgnored private let engines: TranscriptionEngineProvider
@@ -31,6 +35,7 @@ final class CaptionPipeline {
     /// Identifica a sessão atual, para uma tarefa antiga não mexer numa sessão nova.
     @ObservationIgnored private var runID = UUID()
     @ObservationIgnored private var audioClock = AudioClock()
+    @ObservationIgnored private var silenceTask: Task<Void, Never>?
     /// Segmentos confirmados à espera da tradução final: (fim da fala, hora do original).
     @ObservationIgnored private var pendingLatency: [CaptionSegment.ID: (speechEnd: Date, original: Date)] = [:]
 
@@ -56,6 +61,8 @@ final class CaptionPipeline {
         status = .preparing(downloadProgress: nil)
         translationIssue = nil
         latency = CaptionLatency()
+        detectedLanguage = settings.sourceLanguage.fixedLanguage
+        silentFor = nil
         store.clear()
 
         do {
@@ -88,6 +95,7 @@ final class CaptionPipeline {
                 }
                 await self?.didFinish(runID: runID)
             }
+            watchSilence(settings: settings)
         } catch AudioSourceError.permissionDenied {
             releaseEngine()
             status = .permissionMissing
@@ -100,6 +108,10 @@ final class CaptionPipeline {
     func stop() async {
         task?.cancel()
         task = nil
+        silenceTask?.cancel()
+        silenceTask = nil
+        silentFor = nil
+        detectedLanguage = nil
         translator?.cancelAll()
         translator = nil
         await source?.stop()
@@ -129,6 +141,9 @@ final class CaptionPipeline {
     // MARK: - Eventos
 
     private func handle(_ event: TranscriptionEvent, targetLanguage: Language) {
+        switch event {
+        case .partial(_, let language), .final(_, let language, _, _): detectedLanguage = language
+        }
         store.apply(event, targetLanguage: targetLanguage)
         if case .final(_, _, _, let end) = event,
            let segment = store.segments.last, segment.isConfirmed {
@@ -187,6 +202,22 @@ final class CaptionPipeline {
         }
     }
 
+    /// Avisa quando o áudio do sistema fica em silêncio (nada a tocar, volume da app a zero,
+    /// som a sair por um dispositivo que não é captado…). Verifica-se uma vez por segundo.
+    private func watchSilence(settings: AppSettings) {
+        silenceTask?.cancel()
+        let clock = audioClock
+        silenceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                let silence = Date.now.timeIntervalSince(clock.lastSound)
+                let value = silence >= settings.silenceWarningDelay ? Int(silence) : nil
+                if value != self.silentFor { self.silentFor = value }
+            }
+        }
+    }
+
     /// O stream de eventos acabou sem `stop()`: a captação parou sozinha (ex.: permissão retirada).
     private func didFinish(runID: UUID) async {
         guard runID == self.runID, task != nil else { return }
@@ -227,10 +258,20 @@ final class AudioClock: Sendable {
     /// Menor diferença observada entre a chegada de um chunk e o fim do áudio que contém:
     /// a chegada mais "pontual" é a melhor estimativa (as outras incluem atrasos de entrega).
     private let offset = Mutex<TimeInterval?>(nil)
+    private let lastSoundTime = Mutex(Date.now)
+
+    /// Abaixo disto o chunk conta como silêncio (ruído de fundo digital, não fala nem música).
+    static let silenceThreshold: Float = -60
+
+    /// Última vez que chegou áudio com som (ou o início da captação). O ScreenCaptureKit
+    /// pode deixar de entregar chunks quando nada toca, por isso conta o tempo e não os chunks.
+    var lastSound: Date { lastSoundTime.withLock { $0 } }
 
     func observe(_ chunk: AudioChunk) {
-        let candidate = Date.now.timeIntervalSinceReferenceDate - (chunk.timestamp + chunk.duration)
+        let now = Date.now
+        let candidate = now.timeIntervalSinceReferenceDate - (chunk.timestamp + chunk.duration)
         offset.withLock { $0 = min($0 ?? candidate, candidate) }
+        if chunk.rmsDecibels > Self.silenceThreshold { lastSoundTime.withLock { $0 = now } }
     }
 
     func wallTime(forStreamTime time: TimeInterval) -> Date? {

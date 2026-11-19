@@ -21,6 +21,22 @@ enum WhisperModel: String, CaseIterable, Identifiable, Sendable {
         case .largeTurbo: "Large v3 Turbo (~630 MB, o mais preciso)"
         }
     }
+
+    var shortName: String {
+        switch self {
+        case .base: "Base"
+        case .small: "Small"
+        case .largeTurbo: "Large v3 Turbo"
+        }
+    }
+
+    var approximateSize: String {
+        switch self {
+        case .base: "~150 MB"
+        case .small: "~480 MB"
+        case .largeTurbo: "~630 MB"
+        }
+    }
 }
 
 /// Onde ficam os modelos descarregados: ~/Library/Application Support/Tradutor/Models.
@@ -47,12 +63,29 @@ enum WhisperModelStore {
     /// Descarrega o modelo (se faltar) e devolve a pasta local.
     static func download(_ model: WhisperModel, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         if isDownloaded(model) { return folder(for: model) }
-        return try await WhisperKit.download(
-            variant: model.rawValue,
-            downloadBase: downloadBase,
-            from: repository,
-            progressCallback: { progress($0.fractionCompleted) }
-        )
+        do {
+            return try await WhisperKit.download(
+                variant: model.rawValue,
+                downloadBase: downloadBase,
+                from: repository,
+                progressCallback: { progress($0.fractionCompleted) }
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ModelDownloadError(modelName: "Whisper \(model.shortName)", underlying: error)
+        }
+    }
+}
+
+/// O modelo de transcrição não está no Mac e não foi possível descarregá-lo.
+struct ModelDownloadError: LocalizedError {
+    var modelName: String
+    var underlying: Error
+
+    var errorDescription: String? {
+        "Falta o modelo de transcrição \(modelName) e não foi possível descarregá-lo. "
+            + "Verifica a ligação à Internet e tenta de novo (\(underlying.localizedDescription))."
     }
 }
 

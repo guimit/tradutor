@@ -10,6 +10,7 @@ final class OverlayController {
     private let pipeline: CaptionPipeline
     private var panel: OverlayPanel?
     private var hideTask: Task<Void, Never>?
+    private var noticeTask: Task<Void, Never>?
     private var observers: [Task<Void, Never>] = []
     private var dragStart: (mouse: NSPoint, origin: NSPoint)?
 
@@ -65,6 +66,7 @@ final class OverlayController {
     isolated deinit {
         observers.forEach { $0.cancel() }
         hideTask?.cancel()
+        noticeTask?.cancel()
     }
 
     // MARK: - Modo de edição
@@ -82,6 +84,24 @@ final class OverlayController {
     func resetPosition() {
         settings.overlayScreenName = nil
         settings.overlayPosition = .default
+    }
+
+    /// Mostra um aviso curto no painel (também com as legendas paradas).
+    func showNotice(_ text: String) {
+        model.notice = text
+        // Com as legendas a correr, o painel segue o ciclo normal (esconde-se após silêncio).
+        if pipeline.isActive { showTemporarily() } else { model.isShown = true; updatePanelVisibility() }
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled, let self else { return }
+            self.model.notice = nil
+            guard !self.pipeline.isActive else { return }
+            self.model.isShown = false
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self.updatePanelVisibility()
+        }
     }
 
     // MARK: - Estado do pipeline

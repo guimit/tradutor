@@ -23,11 +23,15 @@ final class AppSettings {
         static let overlayScreenName = "overlayScreenName"
         static let translationEngine = "translationEngine"
         static let showLatency = "showLatency"
+        static let silenceWarningDelay = "silenceWarningDelay"
+        static let toggleCaptionsHotKey = "toggleCaptionsHotKey"
+        static let cycleDisplayModeHotKey = "cycleDisplayModeHotKey"
     }
 
     static let fontSizeRange: ClosedRange<Double> = 16...64
     static let lineCountRange: ClosedRange<Int> = 1...4
     static let hideDelayRange: ClosedRange<Double> = 2...15
+    static let silenceWarningRange: ClosedRange<Double> = 10...120
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -100,6 +104,35 @@ final class AppSettings {
         didSet { defaults.set(showLatency, forKey: Key.showLatency) }
     }
 
+    /// Segundos sem som no áudio do sistema até se avisar (no menu e no ícone).
+    var silenceWarningDelay: Double {
+        didSet { defaults.set(silenceWarningDelay, forKey: Key.silenceWarningDelay) }
+    }
+
+    // MARK: Atalhos
+
+    /// `nil` = sem atalho (o utilizador removeu-o).
+    var toggleCaptionsHotKey: HotKey? {
+        didSet { save(toggleCaptionsHotKey, forKey: Key.toggleCaptionsHotKey) }
+    }
+
+    var cycleDisplayModeHotKey: HotKey? {
+        didSet { save(cycleDisplayModeHotKey, forKey: Key.cycleDisplayModeHotKey) }
+    }
+
+    // Guarda-se em JSON, incluindo o `nil` ("null"), para distinguir "removido" de "nunca definido".
+    private func save(_ hotKey: HotKey?, forKey key: String) {
+        defaults.set(try? JSONEncoder().encode(hotKey), forKey: key)
+    }
+
+    private static func hotKey(in defaults: UserDefaults, forKey key: String, default value: HotKey) -> HotKey? {
+        // `try?` achataria o `HotKey??`: um `nil` guardado não se distinguiria de dados inválidos.
+        guard let data = defaults.data(forKey: key),
+              case .success(let hotKey) = Result(catching: { try JSONDecoder().decode(HotKey?.self, from: data) })
+        else { return value }
+        return hotKey
+    }
+
     func makeTranslationEngine() -> any TranslationEngine {
         switch translationEngine {
         case .apple: AppleTranslationEngine()
@@ -145,6 +178,10 @@ final class AppSettings {
         overlayScreenName = defaults.string(forKey: Key.overlayScreenName)
         translationEngine = defaults.string(forKey: Key.translationEngine).flatMap(TranslationEngineKind.init) ?? .apple
         showLatency = defaults.bool(forKey: Key.showLatency)
+        silenceWarningDelay = (defaults.object(forKey: Key.silenceWarningDelay) as? Double)?
+            .clamped(to: Self.silenceWarningRange) ?? 30
+        toggleCaptionsHotKey = Self.hotKey(in: defaults, forKey: Key.toggleCaptionsHotKey, default: .defaultToggleCaptions)
+        cycleDisplayModeHotKey = Self.hotKey(in: defaults, forKey: Key.cycleDisplayModeHotKey, default: .defaultCycleDisplayMode)
     }
 
     /// Identifica a configuração do motor: se mudar, o motor tem de ser recriado.

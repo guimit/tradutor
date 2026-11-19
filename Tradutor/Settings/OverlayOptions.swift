@@ -8,6 +8,15 @@ enum OverlayDisplayMode: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Original → tradução → ambos → original (atalho de teclado).
+    var next: OverlayDisplayMode {
+        switch self {
+        case .original: .translation
+        case .translation: .both
+        case .both: .original
+        }
+    }
+
     var displayName: String {
         switch self {
         case .original: "Só original"

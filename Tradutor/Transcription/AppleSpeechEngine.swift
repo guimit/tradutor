@@ -72,7 +72,11 @@ final class AppleSpeechEngine: TranscriptionEngine {
                 progress(progressObject.fractionCompleted)
             }
             defer { observation.invalidate() }
-            try await request.downloadAndInstall()
+            do {
+                try await request.downloadAndInstall()
+            } catch {
+                throw ModelDownloadError(modelName: "da Apple para \(locale.identifier(.bcp47))", underlying: error)
+            }
         }
         progress(1)
 
