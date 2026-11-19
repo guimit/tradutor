@@ -13,7 +13,19 @@ final class AppSettings {
         static let portugueseVariant = "portugueseVariant"
         static let transcriptionEngine = "transcriptionEngine"
         static let whisperModel = "whisperModel"
+        static let overlayDisplayMode = "overlayDisplayMode"
+        static let overlayFontSize = "overlayFontSize"
+        static let overlayBackgroundOpacity = "overlayBackgroundOpacity"
+        static let overlayLineCount = "overlayLineCount"
+        static let overlayHideDelay = "overlayHideDelay"
+        static let overlayPositionX = "overlayPositionX"
+        static let overlayPositionY = "overlayPositionY"
+        static let overlayScreenName = "overlayScreenName"
     }
+
+    static let fontSizeRange: ClosedRange<Double> = 16...64
+    static let lineCountRange: ClosedRange<Int> = 1...4
+    static let hideDelayRange: ClosedRange<Double> = 2...15
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -37,6 +49,46 @@ final class AppSettings {
         didSet { defaults.set(whisperModel.rawValue, forKey: Key.whisperModel) }
     }
 
+    // MARK: Overlay
+
+    var overlayDisplayMode: OverlayDisplayMode {
+        didSet { defaults.set(overlayDisplayMode.rawValue, forKey: Key.overlayDisplayMode) }
+    }
+
+    var overlayFontSize: Double {
+        didSet { defaults.set(overlayFontSize, forKey: Key.overlayFontSize) }
+    }
+
+    /// Opacidade do fundo (0 = transparente, 1 = preto opaco).
+    var overlayBackgroundOpacity: Double {
+        didSet { defaults.set(overlayBackgroundOpacity, forKey: Key.overlayBackgroundOpacity) }
+    }
+
+    /// Linhas por bloco de texto (original ou tradução).
+    var overlayLineCount: Int {
+        didSet { defaults.set(overlayLineCount, forKey: Key.overlayLineCount) }
+    }
+
+    /// Segundos sem fala até as legendas desaparecerem.
+    var overlayHideDelay: Double {
+        didSet { defaults.set(overlayHideDelay, forKey: Key.overlayHideDelay) }
+    }
+
+    var overlayPosition: OverlayPosition {
+        didSet {
+            defaults.set(overlayPosition.x, forKey: Key.overlayPositionX)
+            defaults.set(overlayPosition.y, forKey: Key.overlayPositionY)
+        }
+    }
+
+    /// Nome do monitor escolhido (`NSScreen.localizedName`); `nil` segue o monitor principal.
+    /// Se o monitor guardado não estiver ligado, usa-se o principal.
+    var overlayScreenName: String? {
+        didSet { defaults.set(overlayScreenName, forKey: Key.overlayScreenName) }
+    }
+
+    // MARK: Transcrição
+
     var transcriptionConfiguration: TranscriptionConfiguration {
         TranscriptionConfiguration(sourceLanguage: sourceLanguage, portugueseVariant: portugueseVariant)
     }
@@ -48,6 +100,28 @@ final class AppSettings {
         portugueseVariant = defaults.string(forKey: Key.portugueseVariant).flatMap(PortugueseVariant.init) ?? .portugal
         transcriptionEngine = defaults.string(forKey: Key.transcriptionEngine).flatMap(TranscriptionEngineKind.init) ?? .whisperKit
         whisperModel = defaults.string(forKey: Key.whisperModel).flatMap(WhisperModel.init) ?? .default
+
+        overlayDisplayMode = defaults.string(forKey: Key.overlayDisplayMode).flatMap(OverlayDisplayMode.init) ?? .both
+        overlayFontSize = (defaults.object(forKey: Key.overlayFontSize) as? Double)?
+            .clamped(to: Self.fontSizeRange) ?? 28
+        overlayBackgroundOpacity = (defaults.object(forKey: Key.overlayBackgroundOpacity) as? Double)?
+            .clamped(to: 0...1) ?? 0.7
+        overlayLineCount = (defaults.object(forKey: Key.overlayLineCount) as? Int)?
+            .clamped(to: Self.lineCountRange) ?? 2
+        overlayHideDelay = (defaults.object(forKey: Key.overlayHideDelay) as? Double)?
+            .clamped(to: Self.hideDelayRange) ?? 4
+        if let x = defaults.object(forKey: Key.overlayPositionX) as? Double,
+           let y = defaults.object(forKey: Key.overlayPositionY) as? Double {
+            overlayPosition = OverlayPosition(x: x.clamped(to: 0...1), y: y.clamped(to: 0...1))
+        } else {
+            overlayPosition = .default
+        }
+        overlayScreenName = defaults.string(forKey: Key.overlayScreenName)
+    }
+
+    /// Identifica a configuração do motor: se mudar, o motor tem de ser recriado.
+    var transcriptionEngineKey: String {
+        "\(transcriptionEngine.rawValue)|\(whisperModel.rawValue)|\(sourceLanguage.rawValue)|\(portugueseVariant.rawValue)"
     }
 
     /// Cria o motor de transcrição escolhido, com a configuração atual.
@@ -56,5 +130,11 @@ final class AppSettings {
         case .whisperKit: WhisperKitEngine(configuration: transcriptionConfiguration, model: whisperModel)
         case .appleSpeech: AppleSpeechEngine(configuration: transcriptionConfiguration)
         }
+    }
+}
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

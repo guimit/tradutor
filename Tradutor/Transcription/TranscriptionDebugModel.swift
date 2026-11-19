@@ -29,10 +29,14 @@ final class TranscriptionDebugModel {
     private(set) var metrics = TranscriptionMetrics.Snapshot()
     private(set) var sourceDescription = ""
 
-    private var engine: (any TranscriptionEngine)?
-    private var engineKey: String?
+    private let engines: TranscriptionEngineProvider
+    private var holdsEngine = false
     private var source: (any AudioSource)?
     private var task: Task<Void, Never>?
+
+    init(engines: TranscriptionEngineProvider) {
+        self.engines = engines
+    }
 
     var isActive: Bool {
         switch phase {
@@ -46,7 +50,14 @@ final class TranscriptionDebugModel {
         guard !isActive else { return }
 
         do {
-            let engine = try await preparedEngine(settings: settings)
+            phase = .downloading(progress: 0)
+            let engine = try await engines.acquire(settings: settings) { [weak self] progress in
+                guard let self, self.isActive else { return }
+                self.phase = progress < 1 ? .downloading(progress: progress) : .loading
+            }
+            holdsEngine = true
+            // Parado durante a preparação.
+            guard isActive else { return releaseEngine() }
             let source: any AudioSource = fileURL.map { FileAudioSource(url: $0) } ?? SystemAudioSource()
             sourceDescription = fileURL?.lastPathComponent ?? "Áudio do sistema"
             let audio = try await source.start()
@@ -62,8 +73,10 @@ final class TranscriptionDebugModel {
                 self?.didFinish()
             }
         } catch AudioSourceError.permissionDenied {
+            releaseEngine()
             phase = .permissionMissing
         } catch {
+            releaseEngine()
             phase = .failed(error.localizedDescription)
         }
     }
@@ -73,6 +86,7 @@ final class TranscriptionDebugModel {
         task = nil
         await source?.stop()
         source = nil
+        releaseEngine()
         if isActive { phase = .idle }
     }
 
@@ -81,22 +95,10 @@ final class TranscriptionDebugModel {
         partial = nil
     }
 
-    private func preparedEngine(settings: AppSettings) async throws -> any TranscriptionEngine {
-        // Reutiliza o motor (e o modelo carregado) se a configuração não mudou.
-        let key = "\(settings.transcriptionEngine)|\(settings.whisperModel)|\(settings.sourceLanguage.rawValue)|\(settings.portugueseVariant)"
-        if let engine, engineKey == key { return engine }
-
-        let engine = settings.makeTranscriptionEngine()
-        phase = .downloading(progress: 0)
-        try await engine.prepare { [weak self] progress in
-            Task { @MainActor in
-                guard let self else { return }
-                self.phase = progress < 1 ? .downloading(progress: progress) : .loading
-            }
-        }
-        self.engine = engine
-        engineKey = key
-        return engine
+    private func releaseEngine() {
+        guard holdsEngine else { return }
+        holdsEngine = false
+        engines.release()
     }
 
     private func handle(_ event: TranscriptionEvent, metrics: TranscriptionMetrics.Snapshot) {
@@ -120,5 +122,6 @@ final class TranscriptionDebugModel {
         case nil: break
         }
         source = nil
+        releaseEngine()
     }
 }

@@ -38,6 +38,8 @@ Transcrição em streaming: os motores "por lotes" (Whisper) implementam `Speech
 
 Dependências externas: só o **WhisperKit** (versão fixa no `project.yml`), importado com `@preconcurrency` porque ainda não está anotado para Swift 6. Modelos em `~/Library/Application Support/Tradutor/Models`.
 
+Overlay: `CaptionPipeline` (App/) liga `AudioSource` → `TranscriptionEngine` → `CaptionStore`; o `OverlayController` mostra o `CaptionStore` num `OverlayPanel` (NSPanel `.nonactivatingPanel`, nível `.statusBar`, `[.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]`, só funciona sobre ecrã inteiro por a app ser accessory). A quebra de linhas é nossa (`CaptionLineBreaker`) para mostrar as últimas N linhas com altura fixa (`OverlayLayout`). O motor é partilhado entre legendas e janela de teste através do `TranscriptionEngineProvider` (um utilizador de cada vez).
+
 Estrutura de pastas: `App/`, `Audio/`, `Transcription/`, `Translation/`, `Overlay/`, `Models/`, `Settings/`.
 
 ## Modelo de dados
@@ -69,6 +71,7 @@ struct CaptionSegment: Identifiable, Sendable {
 - Correr: `open build/Build/Products/Debug/Tradutor.app`
 - Testes (Swift Testing, em `TradutorTests/`): `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -derivedDataPath build test`
 - Testes de integração (motores reais + fala do `say`; descarregam modelos): prefixar com `TEST_RUNNER_TRADUTOR_INTEGRATION=1` (e opcionalmente `TEST_RUNNER_TRADUTOR_WHISPER_MODEL=small|large`) e usar `-only-testing:TradutorTests/TranscriptionIntegrationTests`.
+- Argumentos de debug (só em Debug): `open build/Build/Products/Debug/Tradutor.app --args -TradutorAutoStart YES` inicia as legendas; `-TradutorAudioFile /caminho/fala.aiff` usa um ficheiro em vez do áudio do sistema (não precisa de permissão); `-TradutorEditOverlay YES` abre no modo de ajuste da posição.
 - Se um teste falhar, o XCTest pode ficar vários minutos a simbolizar a pilha (o binário de debug com WhisperKit é grande). Usar `timeout` nos comandos de teste.
 - Assinatura ad-hoc (sem Apple ID/equipa configurada): a permissão de Gravação de Ecrã pode ter de ser dada de novo após cada build.
 

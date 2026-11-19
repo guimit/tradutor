@@ -6,7 +6,12 @@ import UniformTypeIdentifiers
 /// (parcial a cinzento, finais a preto) e a latência medida.
 struct TranscriptionDebugView: View {
     @Bindable var settings: AppSettings
-    @State private var model = TranscriptionDebugModel()
+    @State private var model: TranscriptionDebugModel
+
+    init(settings: AppSettings, engines: TranscriptionEngineProvider) {
+        self.settings = settings
+        _model = State(initialValue: TranscriptionDebugModel(engines: engines))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
