@@ -61,6 +61,7 @@ struct CaptionSegment: Identifiable, Sendable {
 - Gerar: `xcodegen generate`
 - Compilar: `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -configuration Debug -derivedDataPath build build`
 - Correr: `open build/Build/Products/Debug/Tradutor.app`
+- Testes (Swift Testing, em `TradutorTests/`): `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -derivedDataPath build test`
 - Assinatura ad-hoc (sem Apple ID/equipa configurada): a permissão de Gravação de Ecrã pode ter de ser dada de novo após cada build.
 
 ## Convenções

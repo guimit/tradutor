@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuContent: View {
     let appState: AppState
     @Bindable var settings: AppSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Button(appState.isRunning ? "Parar" : "Iniciar") {
@@ -22,6 +23,14 @@ struct MenuContent: View {
             ForEach(Language.allCases) { language in
                 Text(language.displayName).tag(language)
             }
+        }
+
+        Divider()
+
+        Button("Testar captação…") {
+            openWindow(id: WindowID.captureTest)
+            // App sem Dock (LSUIElement): sem isto, a janela abre atrás das outras apps.
+            NSApplication.shared.activate()
         }
 
         Divider()

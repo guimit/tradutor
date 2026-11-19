@@ -57,3 +57,22 @@ targets:
         DEVELOPMENT_TEAM: ""
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_STRICT_CONCURRENCY: complete
+    scheme:
+      testTargets:
+        - TradutorTests
+
+  TradutorTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: TradutorTests
+    dependencies:
+      - target: Tradutor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.guilhermemenezes.TradutorTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        SWIFT_STRICT_CONCURRENCY: complete

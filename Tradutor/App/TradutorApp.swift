@@ -14,5 +14,16 @@ struct TradutorApp: App {
             Image(systemName: appState.isRunning ? "captions.bubble.fill" : "captions.bubble")
         }
         .menuBarExtraStyle(.menu)
+
+        Window("Testar captação", id: WindowID.captureTest) {
+            CaptureTestView()
+        }
+        .windowResizability(.contentSize)
+        // Só abre a partir do menu, nunca no arranque.
+        .defaultLaunchBehavior(.suppressed)
     }
+}
+
+enum WindowID {
+    static let captureTest = "capture-test"
 }
