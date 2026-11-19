@@ -19,6 +19,21 @@ enum Language: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
+/// Variante do português. Influencia o vocabulário da transcrição (e, mais tarde, da tradução).
+enum PortugueseVariant: String, CaseIterable, Identifiable, Codable, Sendable {
+    case portugal = "pt-PT"
+    case brazil = "pt-BR"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .portugal: "Português (Portugal)"
+        case .brazil: "Português (Brasil)"
+        }
+    }
+}
+
 /// Idioma de origem: deteção automática ou um idioma fixo.
 enum SourceLanguage: Hashable, Sendable {
     case auto

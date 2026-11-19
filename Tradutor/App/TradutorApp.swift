@@ -21,9 +21,15 @@ struct TradutorApp: App {
         .windowResizability(.contentSize)
         // Só abre a partir do menu, nunca no arranque.
         .defaultLaunchBehavior(.suppressed)
+
+        Window("Testar transcrição", id: WindowID.transcriptionTest) {
+            TranscriptionDebugView(settings: settings)
+        }
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 
 enum WindowID {
     static let captureTest = "capture-test"
+    static let transcriptionTest = "transcription-test"
 }

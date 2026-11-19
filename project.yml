@@ -9,6 +9,11 @@ options:
     macOS: "26.0"
   createIntermediateGroups: true
 
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    exactVersion: 1.1.1
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -23,6 +28,10 @@ targets:
       - path: Tradutor
         excludes:
           - "**/.gitkeep"
+    dependencies:
+      # Transcrição on-device (Whisper em CoreML). Única dependência externa.
+      - package: WhisperKit
+        product: WhisperKit
     info:
       path: Tradutor/Info.plist
       properties:

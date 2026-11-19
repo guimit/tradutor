@@ -8,7 +8,7 @@ struct CaptureTestView: View {
         VStack(alignment: .leading, spacing: 16) {
             switch model.state {
             case .permissionMissing:
-                PermissionWarning()
+                ScreenCapturePermissionWarning()
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
@@ -65,7 +65,7 @@ struct CaptureTestView: View {
     }
 }
 
-private struct PermissionWarning: View {
+struct ScreenCapturePermissionWarning: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Falta autorização para captar o áudio do sistema", systemImage: "lock.fill")

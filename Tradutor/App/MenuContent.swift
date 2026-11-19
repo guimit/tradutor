@@ -33,6 +33,11 @@ struct MenuContent: View {
             NSApplication.shared.activate()
         }
 
+        Button("Testar transcrição…") {
+            openWindow(id: WindowID.transcriptionTest)
+            NSApplication.shared.activate()
+        }
+
         Divider()
 
         Button("Sair do Tradutor") {

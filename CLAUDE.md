@@ -13,6 +13,8 @@ App nativa de macOS (Swift + SwiftUI) que mostra legendas ao vivo, num overlay f
 - Origem: `Auto` (deteção automática) ou fixa (pt / en / es).
 - Destino: escolhido pelo utilizador. Se origem == destino, não se traduz.
 - A variante de pt é uma definição (afeta vocabulário/prompt da transcrição e a tradução). Atenção: nem todos os motores suportam PT-PT; confirmar o suporte real de cada motor antes de assumir.
+  - WhisperKit: não tem variantes; a variante entra como prompt inicial com vocabulário típico.
+  - Apple SpeechTranscriber: suporta `pt-PT` e `pt-BR` como locales distintos (confirmado no macOS 27.2). Não deteta o idioma: exige origem fixa.
 
 ## Pipeline
 Áudio do sistema → Transcrição em streaming → Segmentação em frases → Tradução → Overlay
@@ -31,6 +33,10 @@ Os motores são trocáveis através de protocolos:
 - `TranslationEngine` — `translate(_:from:to:) async throws -> String` e consulta de pares suportados.
 
 As implementações concretas (ex.: `SystemAudioSource`, `WhisperKitEngine`, `AppleSpeechEngine`, `AppleTranslationEngine`) ficam atrás destes protocolos. O resto da app só conhece os protocolos.
+
+Transcrição em streaming: os motores "por lotes" (Whisper) implementam `SpeechRecognizer` e o `StreamingTranscriber` trata das janelas deslizantes, VAD (`SpeechActivityDetector`), estabilização de idioma (`LanguageStabilizer`) e deduplicação de finais (`FinalDeduplicator`). Esta lógica não depende do WhisperKit e é testada com áudio sintético.
+
+Dependências externas: só o **WhisperKit** (versão fixa no `project.yml`), importado com `@preconcurrency` porque ainda não está anotado para Swift 6. Modelos em `~/Library/Application Support/Tradutor/Models`.
 
 Estrutura de pastas: `App/`, `Audio/`, `Transcription/`, `Translation/`, `Overlay/`, `Models/`, `Settings/`.
 
@@ -62,6 +68,8 @@ struct CaptionSegment: Identifiable, Sendable {
 - Compilar: `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -configuration Debug -derivedDataPath build build`
 - Correr: `open build/Build/Products/Debug/Tradutor.app`
 - Testes (Swift Testing, em `TradutorTests/`): `xcodebuild -project Tradutor.xcodeproj -scheme Tradutor -derivedDataPath build test`
+- Testes de integração (motores reais + fala do `say`; descarregam modelos): prefixar com `TEST_RUNNER_TRADUTOR_INTEGRATION=1` (e opcionalmente `TEST_RUNNER_TRADUTOR_WHISPER_MODEL=small|large`) e usar `-only-testing:TradutorTests/TranscriptionIntegrationTests`.
+- Se um teste falhar, o XCTest pode ficar vários minutos a simbolizar a pilha (o binário de debug com WhisperKit é grande). Usar `timeout` nos comandos de teste.
 - Assinatura ad-hoc (sem Apple ID/equipa configurada): a permissão de Gravação de Ecrã pode ter de ser dada de novo após cada build.
 
 ## Convenções
