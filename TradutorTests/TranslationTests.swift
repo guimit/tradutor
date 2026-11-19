@@ -215,6 +215,75 @@ struct CaptionTranslatorTests {
         await waitUntil { store.segments[0].isTranslationFinal }
         #expect(store.segments[0].translatedText == "pt-BR: Bus.")
     }
+
+    @Test func sentenceSplitByEngineIsTranslatedWhole() async {
+        let engine = FakeTranslationEngine()
+        let translator = translator(engine)
+        send(final("We will split the tasks"), to: translator)
+        // O primeiro pedaço é traduzido logo, para não esperar pelo resto.
+        await waitUntil { store.segments[0].isTranslationFinal }
+        #expect(store.segments[0].translatedText == "pt-PT: We will split the tasks")
+
+        send(partial("for each"), to: translator)
+        send(final("for each team."), to: translator)
+        await waitUntil { store.segments[0].translatedText == "pt-PT: We will split the tasks for each team." }
+        #expect(store.segments[0].isTranslationFinal)
+        #expect(store.segments[1].isTranslationMerged)
+        #expect(engine.calls == ["We will split the tasks", "We will split the tasks for each team."])
+
+        // A frase acabou: o pedaço seguinte começa uma frase nova.
+        send(final("Thanks."), to: translator)
+        await waitUntil { store.segments[2].isTranslationFinal }
+        #expect(store.segments[2].translatedText == "pt-PT: Thanks.")
+        #expect(!store.segments[2].isTranslationMerged)
+    }
+
+    @Test func mergedPieceKeepsProvisionalUntilSentenceIsTranslated() async {
+        let engine = FakeTranslationEngine(delay: .milliseconds(80))
+        let translator = translator(engine)
+        send(final("We will split the tasks"), to: translator)
+        await waitUntil { store.segments[0].isTranslationFinal }
+        send(partial("for each team and every person"), to: translator)
+        await waitUntil { store.segments.count == 2 && store.segments[1].translatedText != nil }
+
+        send(final("for each team and every person."), to: translator)
+        // Enquanto a frase inteira não chega, os dois pedaços mostram a tradução que tinham.
+        #expect(store.segments[0].translatedText == "pt-PT: We will split the tasks")
+        #expect(store.segments[1].translatedText == "pt-PT: for each team and every person")
+        #expect(!store.segments[1].isTranslationMerged)
+        await waitUntil { store.segments[1].isTranslationMerged }
+        #expect(store.segments[0].translatedText == "pt-PT: We will split the tasks for each team and every person.")
+    }
+
+    @Test func sentencesAreGroupedByPunctuationLanguageAndLength() {
+        func segment(_ text: String, _ language: Language = .english, confirmed: Bool = true) -> CaptionSegment {
+            CaptionSegment(originalText: text, detectedLanguage: language, targetLanguage: .portuguese, isConfirmed: confirmed)
+        }
+        let segments = [
+            segment("one two"), segment("three four."),           // frase partida em dois
+            segment("«Hola»"), segment("y adiós.»", .spanish),    // muda o idioma
+            segment("Bom dia", .portuguese),                     // não se traduz: corta a frase
+            segment("a b c"), segment("d e f"), segment("g h"),  // passa do limite de palavras
+            segment("partial", confirmed: false),
+        ]
+        let sentences = CaptionTranslator.sentences(in: segments, maximumWords: 6)
+            .map { $0.map(\.originalText) }
+        #expect(sentences == [
+            ["one two", "three four."],
+            ["«Hola»"],
+            ["y adiós.»"],
+            ["a b c", "d e f"],
+            ["g h"],
+        ])
+    }
+
+    @Test func endsSentenceIgnoresClosingQuotes() {
+        #expect(CaptionTranslator.endsSentence("Ele disse «olá.»"))
+        #expect(CaptionTranslator.endsSentence("Really?\""))
+        #expect(CaptionTranslator.endsSentence("Bueno…"))
+        #expect(!CaptionTranslator.endsSentence("and then"))
+        #expect(!CaptionTranslator.endsSentence(""))
+    }
 }
 
 struct TranslationCacheTests {

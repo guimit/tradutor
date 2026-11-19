@@ -61,12 +61,21 @@ final class CaptionStore {
     }
 
     /// Guarda a tradução de um segmento. Uma tradução provisória nunca substitui uma final.
-    func setTranslation(_ text: String, for id: CaptionSegment.ID, isFinal: Bool) {
+    ///
+    /// `merged`: segmentos seguintes da mesma frase, traduzidos juntos com `id`. A tradução
+    /// fica toda em `id` e estes deixam de mostrar a sua.
+    func setTranslation(_ text: String, for id: CaptionSegment.ID, isFinal: Bool, merged: [CaptionSegment.ID] = []) {
         guard let index = segments.firstIndex(where: { $0.id == id }),
               isFinal || !segments[index].isTranslationFinal
         else { return }
         segments[index].translatedText = text
         segments[index].isTranslationFinal = isFinal
+        segments[index].isTranslationMerged = false
+        for mergedID in merged {
+            guard let index = segments.firstIndex(where: { $0.id == mergedID }) else { continue }
+            segments[index].isTranslationFinal = true
+            segments[index].isTranslationMerged = true
+        }
         revision += 1
     }
 
@@ -76,6 +85,7 @@ final class CaptionStore {
             segments[index].targetLanguage = language
             segments[index].translatedText = nil
             segments[index].isTranslationFinal = false
+            segments[index].isTranslationMerged = false
         }
         revision += 1
     }

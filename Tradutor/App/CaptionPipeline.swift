@@ -147,12 +147,14 @@ final class CaptionPipeline {
             portugueseVariant: settings.portugueseVariant
         )
         translator.onDelivery = { [weak self] delivery in
-            guard let self, delivery.isFinal,
-                  let pending = self.pendingLatency.removeValue(forKey: delivery.segmentID)
-            else { return }
+            guard let self, delivery.isFinal else { return }
             let now = Date.now
-            self.latency.originalToTranslation.record(now.timeIntervalSince(pending.original))
-            self.latency.speechToTranslation.record(now.timeIntervalSince(pending.speechEnd))
+            // Uma frase partida em vários finais conta a latência de cada um.
+            for id in delivery.segmentIDs {
+                guard let pending = self.pendingLatency.removeValue(forKey: id) else { continue }
+                self.latency.originalToTranslation.record(now.timeIntervalSince(pending.original))
+                self.latency.speechToTranslation.record(now.timeIntervalSince(pending.speechEnd))
+            }
             self.translationIssue = nil
         }
         translator.onError = { [weak self] error in

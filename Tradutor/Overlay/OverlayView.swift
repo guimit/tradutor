@@ -110,6 +110,8 @@ struct OverlayView: View {
                 if !segment.needsTranslation {
                     return CaptionRun(id: segment.id, text: segment.originalText, isConfirmed: segment.isConfirmed)
                 }
+                // Já faz parte da tradução de um segmento anterior (frase partida pelo motor).
+                if segment.isTranslationMerged { return nil }
                 if let translation = segment.translatedText {
                     // Provisória a cinzento; a final, a branco, substitui-a no mesmo sítio.
                     return CaptionRun(id: segment.id, text: translation, isConfirmed: segment.isTranslationFinal)

@@ -10,6 +10,9 @@ struct CaptionSegment: Identifiable, Sendable, Equatable {
     /// `false` enquanto `translatedText` for provisória (de um parcial ou de um texto que
     /// entretanto mudou); passa a `true` com a tradução do texto confirmado.
     var isTranslationFinal: Bool
+    /// A tradução deste segmento está incluída na de um segmento anterior da mesma frase
+    /// (o motor partiu a frase a meio); não se mostra a sua.
+    var isTranslationMerged: Bool
     var targetLanguage: Language
     /// `false` enquanto for um parcial (texto instável que ainda pode mudar).
     var isConfirmed: Bool
@@ -21,6 +24,7 @@ struct CaptionSegment: Identifiable, Sendable, Equatable {
         detectedLanguage: Language,
         translatedText: String? = nil,
         isTranslationFinal: Bool = false,
+        isTranslationMerged: Bool = false,
         targetLanguage: Language,
         isConfirmed: Bool,
         timestamp: Date = .now
@@ -30,6 +34,7 @@ struct CaptionSegment: Identifiable, Sendable, Equatable {
         self.detectedLanguage = detectedLanguage
         self.translatedText = translatedText
         self.isTranslationFinal = isTranslationFinal
+        self.isTranslationMerged = isTranslationMerged
         self.targetLanguage = targetLanguage
         self.isConfirmed = isConfirmed
         self.timestamp = timestamp

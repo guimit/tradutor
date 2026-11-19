@@ -27,7 +27,7 @@ final class OverlayController {
         self.settings = settings
         self.pipeline = pipeline
 
-        observers.append(Task { [weak self, settings, pipeline] in
+        observers.append(Task { [weak self, settings] in
             let inputs = Observations {
                 LayoutInputs(
                     mode: settings.overlayDisplayMode,
