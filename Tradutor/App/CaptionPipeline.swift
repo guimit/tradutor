@@ -1,8 +1,9 @@
 import Foundation
 import Observation
+import Synchronization
 
-/// Liga as peças: `AudioSource` → `TranscriptionEngine` → `CaptionStore` (que o overlay mostra).
-/// A tradução entra aqui na próxima fase, entre os finais e o `CaptionStore`.
+/// Liga as peças: `AudioSource` → `TranscriptionEngine` → `CaptionStore` ← `CaptionTranslator`.
+/// O overlay mostra o `CaptionStore`.
 @MainActor
 @Observable
 final class CaptionPipeline {
@@ -16,18 +17,22 @@ final class CaptionPipeline {
     }
 
     private(set) var status: Status = .idle
+    /// Problema de tradução que não impede as legendas (ex.: idiomas por descarregar).
+    private(set) var translationIssue: String?
+    private(set) var latency = CaptionLatency()
     let store: CaptionStore
-
-    /// Por agora não há motor de tradução: o overlay mostra sempre o original.
-    var isTranslationAvailable: Bool { false }
 
     @ObservationIgnored private let engines: TranscriptionEngineProvider
     @ObservationIgnored private let makeSource: @MainActor () -> any AudioSource
     @ObservationIgnored private var source: (any AudioSource)?
+    @ObservationIgnored private var translator: CaptionTranslator?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var holdsEngine = false
     /// Identifica a sessão atual, para uma tarefa antiga não mexer numa sessão nova.
     @ObservationIgnored private var runID = UUID()
+    @ObservationIgnored private var audioClock = AudioClock()
+    /// Segmentos confirmados à espera da tradução final: (fim da fala, hora do original).
+    @ObservationIgnored private var pendingLatency: [CaptionSegment.ID: (speechEnd: Date, original: Date)] = [:]
 
     init(
         store: CaptionStore,
@@ -49,6 +54,8 @@ final class CaptionPipeline {
     func start(settings: AppSettings) async {
         guard !isActive else { return }
         status = .preparing(downloadProgress: nil)
+        translationIssue = nil
+        latency = CaptionLatency()
         store.clear()
 
         do {
@@ -65,15 +72,19 @@ final class CaptionPipeline {
             self.source = source
             guard isActive else { return await stop() }
 
+            translator = makeTranslator(settings: settings)
+            checkTranslationPairs(settings: settings)
+
             engine.metrics.reset()
             status = .running
-            let events = engine.transcribe(audio)
+            audioClock = AudioClock()
+            let events = engine.transcribe(Self.relay(audio, clock: audioClock))
             let runID = UUID()
             self.runID = runID
             task = Task { [weak self] in
                 for await event in events {
                     guard let self else { return }
-                    self.store.apply(event, targetLanguage: settings.targetLanguage)
+                    self.handle(event, targetLanguage: settings.targetLanguage)
                 }
                 await self?.didFinish(runID: runID)
             }
@@ -89,11 +100,89 @@ final class CaptionPipeline {
     func stop() async {
         task?.cancel()
         task = nil
+        translator?.cancelAll()
+        translator = nil
         await source?.stop()
         source = nil
         releaseEngine()
         store.clear()
+        pendingLatency.removeAll()
         status = .idle
+    }
+
+    /// Limpa as legendas (ex.: depois de um silêncio) e cancela as traduções pendentes.
+    func clearCaptions() {
+        store.clear()
+        translator?.update()
+    }
+
+    /// Mudou o idioma de destino: retraduz o que está no ecrã e verifica os idiomas.
+    func targetLanguageChanged(settings: AppSettings) {
+        guard let translator else { return }
+        translator.cancelAll()
+        pendingLatency.removeAll()
+        store.retarget(to: settings.targetLanguage)
+        translator.update()
+        checkTranslationPairs(settings: settings)
+    }
+
+    // MARK: - Eventos
+
+    private func handle(_ event: TranscriptionEvent, targetLanguage: Language) {
+        store.apply(event, targetLanguage: targetLanguage)
+        if case .final(_, _, _, let end) = event,
+           let segment = store.segments.last, segment.isConfirmed {
+            let now = Date.now
+            let speechEnd = audioClock.wallTime(forStreamTime: end) ?? now
+            latency.speechToOriginal.record(now.timeIntervalSince(speechEnd))
+            if segment.needsTranslation { pendingLatency[segment.id] = (speechEnd, now) }
+        }
+        translator?.update()
+    }
+
+    private func makeTranslator(settings: AppSettings) -> CaptionTranslator {
+        let translator = CaptionTranslator(
+            store: store,
+            engine: settings.makeTranslationEngine(),
+            portugueseVariant: settings.portugueseVariant
+        )
+        translator.onDelivery = { [weak self] delivery in
+            guard let self, delivery.isFinal,
+                  let pending = self.pendingLatency.removeValue(forKey: delivery.segmentID)
+            else { return }
+            let now = Date.now
+            self.latency.originalToTranslation.record(now.timeIntervalSince(pending.original))
+            self.latency.speechToTranslation.record(now.timeIntervalSince(pending.speechEnd))
+            self.translationIssue = nil
+        }
+        translator.onError = { [weak self] error in
+            self?.translationIssue = error.localizedDescription
+        }
+        return translator
+    }
+
+    /// Avisa logo no início se faltarem idiomas, em vez de esperar pela primeira frase.
+    private func checkTranslationPairs(settings: AppSettings) {
+        guard settings.isTranslationNeeded else { return }
+        let engine = settings.makeTranslationEngine()
+        let variant = settings.portugueseVariant
+        let target = TranslationLanguage(language: settings.targetLanguage, portugueseVariant: variant)
+        let sources: [Language] = switch settings.sourceLanguage {
+        case .auto: Language.allCases.filter { $0 != settings.targetLanguage }
+        case .fixed(let language): [language]
+        }
+        Task { [weak self] in
+            var missing: [String] = []
+            for language in sources {
+                let source = TranslationLanguage(language: language, portugueseVariant: variant)
+                if await engine.status(from: source, to: target) != .ready {
+                    missing.append("\(source.displayName) → \(target.displayName)")
+                }
+            }
+            guard let self, !missing.isEmpty else { return }
+            self.translationIssue = "Faltam idiomas de tradução (\(missing.joined(separator: ", "))). "
+                + "Descarrega-os em Definições › Tradução."
+        }
     }
 
     /// O stream de eventos acabou sem `stop()`: a captação parou sozinha (ex.: permissão retirada).
@@ -114,4 +203,59 @@ final class CaptionPipeline {
         holdsEngine = false
         engines.release()
     }
+
+    /// Passa o áudio adiante, registando a relação entre o tempo do stream e o relógio real.
+    private nonisolated static func relay(_ audio: AsyncStream<AudioChunk>, clock: AudioClock) -> AsyncStream<AudioChunk> {
+        let (stream, continuation) = AsyncStream.makeStream(of: AudioChunk.self, bufferingPolicy: .bufferingNewest(500))
+        let task = Task.detached {
+            for await chunk in audio {
+                clock.observe(chunk)
+                continuation.yield(chunk)
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+}
+
+/// Converte tempos do stream de áudio (`AudioChunk.timestamp`, em segundos desde o início da
+/// captação) em horas reais, para medir a latência desde que a fala acontece.
+final class AudioClock: Sendable {
+    /// Menor diferença observada entre a chegada de um chunk e o fim do áudio que contém:
+    /// a chegada mais "pontual" é a melhor estimativa (as outras incluem atrasos de entrega).
+    private let offset = Mutex<TimeInterval?>(nil)
+
+    func observe(_ chunk: AudioChunk) {
+        let candidate = Date.now.timeIntervalSinceReferenceDate - (chunk.timestamp + chunk.duration)
+        offset.withLock { $0 = min($0 ?? candidate, candidate) }
+    }
+
+    func wallTime(forStreamTime time: TimeInterval) -> Date? {
+        offset.withLock { $0 }.map { Date(timeIntervalSinceReferenceDate: time + $0) }
+    }
+}
+
+/// Latências medidas (segundos), para o modo debug.
+struct CaptionLatency: Equatable, Sendable {
+    struct Stat: Equatable, Sendable {
+        private(set) var last: TimeInterval?
+        private(set) var total: TimeInterval = 0
+        private(set) var count = 0
+
+        var average: TimeInterval? { count > 0 ? total / Double(count) : nil }
+
+        mutating func record(_ value: TimeInterval) {
+            last = value
+            total += value
+            count += 1
+        }
+    }
+
+    /// Do fim da fala até o original confirmado aparecer.
+    var speechToOriginal = Stat()
+    /// Do original confirmado até à sua tradução final.
+    var originalToTranslation = Stat()
+    /// Do fim da fala até à tradução final.
+    var speechToTranslation = Stat()
 }

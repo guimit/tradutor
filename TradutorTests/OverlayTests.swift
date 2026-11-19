@@ -54,7 +54,7 @@ struct CaptionStoreTests {
     @Test func translationIsStoredBySegment() {
         let store = CaptionStore()
         store.apply(.final(text: "Hello.", language: .english, start: 0, end: 1), targetLanguage: .portuguese)
-        store.setTranslation("Olá.", for: store.segments[0].id)
+        store.setTranslation("Olá.", for: store.segments[0].id, isFinal: true)
         #expect(store.segments[0].translatedText == "Olá.")
     }
 

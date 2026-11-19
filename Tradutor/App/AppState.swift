@@ -10,21 +10,32 @@ final class AppState {
     let pipeline: CaptionPipeline
     @ObservationIgnored private(set) var overlay: OverlayController!
     @ObservationIgnored private var settingsObserver: Task<Void, Never>?
+    @ObservationIgnored private var targetObserver: Task<Void, Never>?
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
         pipeline = CaptionPipeline(store: CaptionStore(), engines: engines, makeSource: Self.makeAudioSource)
         overlay = OverlayController(settings: settings, pipeline: pipeline)
 
-        // Mudar o motor, o modelo, o idioma de origem ou a variante (ex.: no menu) a meio
-        // obriga a recriar o motor: reinicia-se o pipeline com a configuração nova.
+        // Mudar o motor, o modelo, o idioma de origem, a variante ou o motor de tradução
+        // (ex.: no menu) a meio obriga a recriar os motores: reinicia-se o pipeline.
+        // O motor de transcrição fica em cache, por isso o reinício é rápido.
         settingsObserver = Task { [weak self, settings] in
             var previous: String?
-            for await key in Observations({ settings.transcriptionEngineKey }) {
+            for await key in Observations({ "\(settings.transcriptionEngineKey)|\(settings.translationEngine.rawValue)" }) {
                 defer { previous = key }
                 guard let self, previous != nil, previous != key, self.pipeline.isActive else { continue }
                 await self.pipeline.stop()
                 await self.pipeline.start(settings: settings)
+            }
+        }
+        // O idioma de destino muda-se sem reiniciar: só se retraduz.
+        targetObserver = Task { [weak self, settings] in
+            var previous: Language?
+            for await target in Observations({ settings.targetLanguage }) {
+                defer { previous = target }
+                guard let self, previous != nil, previous != target else { continue }
+                self.pipeline.targetLanguageChanged(settings: settings)
             }
         }
 

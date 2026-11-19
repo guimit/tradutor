@@ -14,7 +14,7 @@ final class OverlayModel {
 
 struct OverlayView: View {
     let model: OverlayModel
-    let store: CaptionStore
+    let pipeline: CaptionPipeline
     let settings: AppSettings
     var onDragChanged: (DragGesture.Value) -> Void = { _ in }
     var onDragEnded: (DragGesture.Value) -> Void = { _ in }
@@ -53,6 +53,26 @@ struct OverlayView: View {
                     .padding(6)
             }
         }
+        .overlay(alignment: .topLeading) {
+            // Modo debug: latência fala → original → tradução, na margem de cima.
+            if settings.showLatency, !model.isEditing {
+                Text(latencyDescription)
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.leading, OverlayLayout.horizontalPadding)
+                    .padding(.top, 1)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if let issue = pipeline.translationIssue, !model.isEditing {
+                Label(issue, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.yellow)
+                    .lineLimit(1)
+                    .padding(.trailing, OverlayLayout.horizontalPadding)
+                    .padding(.top, 1)
+            }
+        }
         .contentShape(Rectangle())
         .gesture(
             // Coordenadas globais: as locais mudariam enquanto o próprio painel se move.
@@ -73,24 +93,43 @@ struct OverlayView: View {
                 isConfirmed: true
             )]
         }
-        if let message = model.message, store.segments.isEmpty {
+        let segments = pipeline.store.segments
+        if let message = model.message, segments.isEmpty {
             return kind == model.layout.blocks.last?.kind
                 ? [CaptionRun(id: Self.placeholderID, text: message, isConfirmed: false)]
                 : []
         }
-        return store.segments.compactMap { segment in
+        let showsBoth = model.layout.blocks.count > 1
+        return segments.compactMap { segment in
             switch kind {
             case .original:
-                CaptionRun(id: segment.id, text: segment.originalText, isConfirmed: segment.isConfirmed)
+                // Com os dois blocos, o que já está no idioma de destino aparece só no de baixo.
+                if showsBoth, !segment.needsTranslation { return nil }
+                return CaptionRun(id: segment.id, text: segment.originalText, isConfirmed: segment.isConfirmed)
             case .translation:
-                // Sem tradução (ainda), mostra-se o original; a fase de tradução preenche `translatedText`.
-                CaptionRun(
-                    id: segment.id,
-                    text: segment.translatedText ?? segment.originalText,
-                    isConfirmed: segment.isConfirmed
-                )
+                if !segment.needsTranslation {
+                    return CaptionRun(id: segment.id, text: segment.originalText, isConfirmed: segment.isConfirmed)
+                }
+                if let translation = segment.translatedText {
+                    // Provisória a cinzento; a final, a branco, substitui-a no mesmo sítio.
+                    return CaptionRun(id: segment.id, text: translation, isConfirmed: segment.isTranslationFinal)
+                }
+                // "Só tradução": enquanto a tradução não chega, mostra-se o original a cinzento
+                // (o utilizador vê logo que há fala). Com os dois blocos, o original já está em cima.
+                return showsBoth ? nil : CaptionRun(id: segment.id, text: segment.originalText, isConfirmed: false)
             }
         }
+    }
+
+    private var latencyDescription: String {
+        let latency = pipeline.latency
+        func format(_ stat: CaptionLatency.Stat) -> String {
+            guard let last = stat.last, let average = stat.average else { return "—" }
+            return "\(Int(last * 1000)) ms (média \(Int(average * 1000)))"
+        }
+        return "fala→original \(format(latency.speechToOriginal)) · "
+            + "original→tradução \(format(latency.originalToTranslation)) · "
+            + "fala→tradução \(format(latency.speechToTranslation))"
     }
 
     private static let placeholderID = UUID()

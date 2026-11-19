@@ -44,6 +44,8 @@ final class CaptionStore {
                     segments[segments.count - 1].originalText = text
                     segments[segments.count - 1].detectedLanguage = language
                     segments[segments.count - 1].isConfirmed = true
+                    // A tradução provisória fica visível até chegar a do texto final.
+                    segments[segments.count - 1].isTranslationFinal = false
                 }
             } else if !text.isEmpty {
                 segments.append(CaptionSegment(
@@ -58,10 +60,23 @@ final class CaptionStore {
         revision += 1
     }
 
-    /// Guarda a tradução de um segmento confirmado (usado pela fase de tradução).
-    func setTranslation(_ text: String, for id: CaptionSegment.ID) {
-        guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
+    /// Guarda a tradução de um segmento. Uma tradução provisória nunca substitui uma final.
+    func setTranslation(_ text: String, for id: CaptionSegment.ID, isFinal: Bool) {
+        guard let index = segments.firstIndex(where: { $0.id == id }),
+              isFinal || !segments[index].isTranslationFinal
+        else { return }
         segments[index].translatedText = text
+        segments[index].isTranslationFinal = isFinal
+        revision += 1
+    }
+
+    /// Novo idioma de destino: as traduções existentes deixam de servir.
+    func retarget(to language: Language) {
+        for index in segments.indices {
+            segments[index].targetLanguage = language
+            segments[index].translatedText = nil
+            segments[index].isTranslationFinal = false
+        }
         revision += 1
     }
 

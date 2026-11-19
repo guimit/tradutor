@@ -31,7 +31,7 @@ final class OverlayController {
             let inputs = Observations {
                 LayoutInputs(
                     mode: settings.overlayDisplayMode,
-                    translationAvailable: pipeline.isTranslationAvailable,
+                    translationAvailable: settings.isTranslationNeeded,
                     fontSize: settings.overlayFontSize,
                     lineCount: settings.overlayLineCount,
                     position: settings.overlayPosition,
@@ -45,6 +45,13 @@ final class OverlayController {
         })
         observers.append(Task { [weak self, pipeline] in
             for await _ in Observations({ pipeline.store.revision }) { self?.captionsChanged() }
+        })
+        // Um aviso de tradução novo (ex.: idiomas por descarregar) mostra o painel.
+        observers.append(Task { [weak self, pipeline] in
+            for await issue in Observations({ pipeline.translationIssue }) {
+                guard let self, issue != nil, pipeline.status == .running else { continue }
+                self.showTemporarily(for: 8)
+            }
         })
         // Monitor ligado/desligado ou resolução alterada.
         observers.append(Task { [weak self] in
@@ -130,7 +137,7 @@ final class OverlayController {
             guard !Task.isCancelled else { return }
             // Depois do silêncio recomeça-se com o ecrã limpo, em vez de mostrar texto antigo.
             self.model.message = nil
-            self.pipeline.store.clear()
+            self.pipeline.clearCaptions()
             self.updatePanelVisibility()
         }
     }
@@ -153,7 +160,7 @@ final class OverlayController {
         let panel = OverlayPanel()
         let view = OverlayView(
             model: model,
-            store: pipeline.store,
+            pipeline: pipeline,
             settings: settings,
             onDragChanged: { [weak self] _ in self?.dragChanged() },
             onDragEnded: { [weak self] _ in self?.dragEnded() },
@@ -183,7 +190,7 @@ final class OverlayController {
         guard let screen = targetScreen else { return }
         let layout = OverlayLayout.make(
             mode: settings.overlayDisplayMode,
-            translationAvailable: pipeline.isTranslationAvailable,
+            translationAvailable: settings.isTranslationNeeded,
             fontSize: settings.overlayFontSize,
             lineCount: settings.overlayLineCount,
             screenWidth: screen.visibleFrame.width

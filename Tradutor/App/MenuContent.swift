@@ -73,6 +73,13 @@ struct MenuContent: View {
             Text(progress.map { "A descarregar o modelo… \(Int($0 * 100)) %" } ?? "A carregar o modelo…")
         case .running:
             Text("A legendar o áudio do sistema")
+            if let issue = appState.pipeline.translationIssue {
+                Text(issue)
+                Button("Abrir definições de tradução…") {
+                    openSettings()
+                    NSApplication.shared.activate()
+                }
+            }
         case .permissionMissing:
             Text("Falta a permissão de Gravação de Ecrã")
             Button("Abrir Definições do Sistema…") {

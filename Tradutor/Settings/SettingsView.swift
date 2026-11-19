@@ -14,6 +14,9 @@ struct SettingsView: View {
             Tab("Transcrição", systemImage: "waveform") {
                 TranscriptionSettingsView(settings: settings)
             }
+            Tab("Tradução", systemImage: "translate") {
+                TranslationSettingsView(settings: settings)
+            }
         }
         .frame(width: 480)
     }
@@ -28,8 +31,11 @@ private struct OverlaySettingsView: View {
             Picker("Mostrar", selection: $settings.overlayDisplayMode) {
                 ForEach(OverlayDisplayMode.allCases) { Text($0.displayName).tag($0) }
             }
-            if !appState.pipeline.isTranslationAvailable {
-                Text("A tradução ainda não está disponível: por agora mostra-se sempre o texto original.")
+            Picker("Traduzir para", selection: $settings.targetLanguage) {
+                ForEach(Language.allCases) { Text($0.displayName).tag($0) }
+            }
+            if !settings.isTranslationNeeded {
+                Text("O idioma de origem é igual ao de destino: mostra-se só o original.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -131,5 +137,53 @@ private struct TranscriptionSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct TranslationSettingsView: View {
+    @Bindable var settings: AppSettings
+    @State private var deepLKey = ""
+    @State private var llmKey = ""
+
+    var body: some View {
+        Form {
+            Picker("Idioma de destino", selection: $settings.targetLanguage) {
+                ForEach(Language.allCases) { Text($0.displayName).tag($0) }
+            }
+            Picker("Motor", selection: $settings.translationEngine) {
+                ForEach(TranslationEngineKind.allCases) { Text($0.displayName).tag($0) }
+            }
+            if settings.translationEngine.isCloud {
+                Text("Este motor envia o texto transcrito para um serviço externo e ainda não está implementado.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            if settings.translationEngine == .apple {
+                TranslationLanguagesView(portugueseVariant: settings.portugueseVariant)
+            }
+
+            Section {
+                SecureField("Chave DeepL", text: $deepLKey)
+                    .onSubmit { KeychainStore.set(deepLKey, for: DeepLEngine.keychainAccount) }
+                SecureField("Chave LLM", text: $llmKey)
+                    .onSubmit { KeychainStore.set(llmKey, for: LLMTranslationEngine.keychainAccount) }
+            } header: {
+                Text("Chaves de API (motores cloud)")
+            } footer: {
+                Text("Guardadas no Keychain ao carregar em Enter. Deixa vazio e carrega em Enter para apagar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Debug") {
+                Toggle("Mostrar latência no overlay", isOn: $settings.showLatency)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            deepLKey = KeychainStore.string(for: DeepLEngine.keychainAccount) ?? ""
+            llmKey = KeychainStore.string(for: LLMTranslationEngine.keychainAccount) ?? ""
+        }
     }
 }

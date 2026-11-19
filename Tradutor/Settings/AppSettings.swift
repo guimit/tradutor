@@ -21,6 +21,8 @@ final class AppSettings {
         static let overlayPositionX = "overlayPositionX"
         static let overlayPositionY = "overlayPositionY"
         static let overlayScreenName = "overlayScreenName"
+        static let translationEngine = "translationEngine"
+        static let showLatency = "showLatency"
     }
 
     static let fontSizeRange: ClosedRange<Double> = 16...64
@@ -87,6 +89,30 @@ final class AppSettings {
         didSet { defaults.set(overlayScreenName, forKey: Key.overlayScreenName) }
     }
 
+    // MARK: Tradução
+
+    var translationEngine: TranslationEngineKind {
+        didSet { defaults.set(translationEngine.rawValue, forKey: Key.translationEngine) }
+    }
+
+    /// Modo debug: mostra no overlay a latência fala → original → tradução.
+    var showLatency: Bool {
+        didSet { defaults.set(showLatency, forKey: Key.showLatency) }
+    }
+
+    func makeTranslationEngine() -> any TranslationEngine {
+        switch translationEngine {
+        case .apple: AppleTranslationEngine()
+        case .deepL: DeepLEngine()
+        case .llm: LLMTranslationEngine()
+        }
+    }
+
+    /// Com origem fixa igual ao destino, não há nada a traduzir.
+    var isTranslationNeeded: Bool {
+        sourceLanguage != .fixed(targetLanguage)
+    }
+
     // MARK: Transcrição
 
     var transcriptionConfiguration: TranscriptionConfiguration {
@@ -117,6 +143,8 @@ final class AppSettings {
             overlayPosition = .default
         }
         overlayScreenName = defaults.string(forKey: Key.overlayScreenName)
+        translationEngine = defaults.string(forKey: Key.translationEngine).flatMap(TranslationEngineKind.init) ?? .apple
+        showLatency = defaults.bool(forKey: Key.showLatency)
     }
 
     /// Identifica a configuração do motor: se mudar, o motor tem de ser recriado.
