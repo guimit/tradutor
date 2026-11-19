@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Xcode — o projeto é gerado pelo XcodeGen a partir do project.yml
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+*.xcresult
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Info.plist e entitlements são gerados pelo XcodeGen a partir do project.yml
+Tradutor/Info.plist
+Tradutor/Tradutor.entitlements

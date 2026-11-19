@@ -1,0 +1,34 @@
+import SwiftUI
+
+struct MenuContent: View {
+    let appState: AppState
+    @Bindable var settings: AppSettings
+
+    var body: some View {
+        Button(appState.isRunning ? "Parar" : "Iniciar") {
+            appState.toggleRunning()
+        }
+        .keyboardShortcut("s")
+
+        Divider()
+
+        Picker("Idioma de origem", selection: $settings.sourceLanguage) {
+            ForEach(SourceLanguage.allCases, id: \.self) { source in
+                Text(source.displayName).tag(source)
+            }
+        }
+
+        Picker("Idioma de destino", selection: $settings.targetLanguage) {
+            ForEach(Language.allCases) { language in
+                Text(language.displayName).tag(language)
+            }
+        }
+
+        Divider()
+
+        Button("Sair do Tradutor") {
+            NSApplication.shared.terminate(nil)
+        }
+        .keyboardShortcut("q")
+    }
+}

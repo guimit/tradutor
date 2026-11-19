@@ -1,0 +1,59 @@
+# Especificação do projeto para o XcodeGen.
+# O Tradutor.xcodeproj é gerado a partir deste ficheiro e não é versionado:
+#   xcodegen generate
+name: Tradutor
+
+options:
+  bundleIdPrefix: com.guilhermemenezes
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Tradutor:
+    type: application
+    platform: macOS
+    sources:
+      - path: Tradutor
+        excludes:
+          - "**/.gitkeep"
+    info:
+      path: Tradutor/Info.plist
+      properties:
+        CFBundleDisplayName: Tradutor
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.productivity
+        # App só de barra de menu: sem ícone no Dock nem menu principal.
+        LSUIElement: true
+        NSMicrophoneUsageDescription: O Tradutor usa o microfone para legendar a tua voz (opcional).
+        # Mostrado pelo sistema ao captar áudio de outras apps (Core Audio process taps).
+        # O ScreenCaptureKit não usa texto próprio: o pedido de "Gravação de Ecrã e Áudio do Sistema" é genérico.
+        NSAudioCaptureUsageDescription: O Tradutor capta o áudio do Mac para mostrar legendas e traduções ao vivo.
+    entitlements:
+      path: Tradutor/Tradutor.entitlements
+      properties:
+        # Sandbox desligado por agora: impede distribuição pela Mac App Store,
+        # mas permite Developer ID + notarização.
+        com.apple.security.app-sandbox: false
+        # Necessário com o Hardened Runtime para aceder ao microfone.
+        com.apple.security.device.audio-input: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.guilhermemenezes.Tradutor
+        PRODUCT_NAME: Tradutor
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        # Assinatura ad-hoc ("Sign to Run Locally"): não há identidade de programador instalada.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        SWIFT_STRICT_CONCURRENCY: complete
