@@ -75,14 +75,13 @@ struct OverlayView: View {
                     .padding(.top, 1)
             }
         }
-        .overlay {
+        .overlay(alignment: .top) {
+            // Na margem de cima, para não tapar as legendas.
             if let notice = model.notice, !model.isEditing {
                 Text(notice)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(.black.opacity(0.85), in: Capsule())
+                    .padding(.top, 1)
                     .transition(.opacity)
             }
         }
