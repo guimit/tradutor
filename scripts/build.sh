@@ -32,7 +32,7 @@ case "$MODE" in
   adhoc)
     step "Archive (Release, assinatura ad-hoc)"
     xcodebuild archive -quiet \
-      -project Tradutor.xcodeproj -scheme Tradutor -configuration Release \
+      -project Tradutor.xcodeproj -scheme Tradutor -configuration Release -destination "generic/platform=macOS" \
       -archivePath "$ARCHIVE"
     ditto "$ARCHIVE/Products/Applications/Tradutor.app" "$DIST/Tradutor.app"
     step "Pronto: $DIST/Tradutor.app (só funciona neste Mac; o Gatekeeper bloqueia-a noutros)"
@@ -44,7 +44,7 @@ case "$MODE" in
     step "Archive (Release, Developer ID, Hardened Runtime)"
     # --timestamp: a notarização exige assinaturas com carimbo de tempo seguro.
     xcodebuild archive -quiet \
-      -project Tradutor.xcodeproj -scheme Tradutor -configuration Release \
+      -project Tradutor.xcodeproj -scheme Tradutor -configuration Release -destination "generic/platform=macOS" \
       -archivePath "$ARCHIVE" \
       CODE_SIGN_STYLE=Manual \
       CODE_SIGN_IDENTITY="Developer ID Application" \
