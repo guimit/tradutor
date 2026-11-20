@@ -22,6 +22,14 @@ struct OverlayView: View {
     var onDragEnded: (DragGesture.Value) -> Void = { _ in }
     var onDone: () -> Void = {}
 
+    /// "Aumentar contraste" (Acessibilidade › Ecrã): fundo quase opaco, como pedem as normas
+    /// de legendagem, seja qual for a opacidade escolhida.
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var backgroundOpacity: Double {
+        contrast == .increased ? max(settings.overlayBackgroundOpacity, 0.9) : settings.overlayBackgroundOpacity
+    }
+
     var body: some View {
         let layout = model.layout
         VStack(spacing: OverlayLayout.blockSpacing) {
@@ -39,7 +47,7 @@ struct OverlayView: View {
         .frame(width: layout.width, height: layout.height)
         .background {
             RoundedRectangle(cornerRadius: OverlayLayout.cornerRadius, style: .continuous)
-                .fill(.black.opacity(settings.overlayBackgroundOpacity))
+                .fill(.black.opacity(backgroundOpacity))
         }
         .overlay {
             if model.isEditing {
@@ -158,6 +166,10 @@ private struct CaptionBlockView: View {
     let width: CGFloat
     let isSecondary: Bool
 
+    /// Reduzir movimento: as linhas aparecem e desaparecem sem deslizar.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+
     var body: some View {
         // Uma pequena margem: a soma das larguras das palavras ignora o kerning entre elas.
         let lines = CaptionLineBreaker
@@ -171,9 +183,9 @@ private struct CaptionBlockView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     // Parcial → final: as letras transformam-se em vez de se sobreporem.
-                    .contentTransition(.interpolate)
+                    .contentTransition(reduceMotion ? .identity : .interpolate)
                     .frame(maxWidth: .infinity, minHeight: block.lineHeight, maxHeight: block.lineHeight, alignment: .leading)
-                    .transition(.asymmetric(
+                    .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .move(edge: .top).combined(with: .opacity)
                     ))
@@ -182,18 +194,23 @@ private struct CaptionBlockView: View {
         .frame(width: width, height: block.height, alignment: .bottom)
         .clipped()
         .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
-        .animation(.easeOut(duration: 0.2), value: lines.map(\.id))
-        .animation(.easeOut(duration: 0.15), value: lines.map(\.words))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: lines.map(\.id))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: lines.map(\.words))
     }
 
     /// Final a branco; parcial a cinzento claro. Como o final mantém o id do parcial que
     /// substitui, a troca acontece no mesmo sítio (só muda a cor e, por vezes, uma palavra).
+    ///
+    /// Contraste: com o fundo por defeito (preto a 70 %) sobre uma página branca, o fundo
+    /// efetivo fica cinzento-escuro; o cinzento do parcial (0,75) ainda dá ~4,6:1 (WCAG AA).
     private func attributed(_ line: CaptionLine) -> AttributedString {
+        let increased = contrast == .increased
+        let confirmed: Color = isSecondary && !increased ? Color(white: 0.88) : .white
+        let partial = Color(white: increased ? 0.85 : 0.75)
         var result = AttributedString()
         for (index, word) in line.words.enumerated() {
             var piece = AttributedString(index == 0 ? word.text : " " + word.text)
-            let base: Color = isSecondary ? Color(white: 0.85) : .white
-            piece.foregroundColor = word.isConfirmed ? base : Color(white: 0.7).opacity(0.85)
+            piece.foregroundColor = word.isConfirmed ? confirmed : partial
             result += piece
         }
         return result

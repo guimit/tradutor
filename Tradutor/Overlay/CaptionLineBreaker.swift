@@ -56,8 +56,41 @@ enum CaptionLineBreaker {
     }
 
     /// Versão com a medição real do tipo de letra.
+    ///
+    /// As larguras ficam em cache: a cada parcial volta-se a quebrar todo o texto do ecrã,
+    /// e medir com `sizeWithAttributes` era o que mais pesava no overlay (perfil com `sample`).
+    @MainActor
     static func lines(for runs: [CaptionRun], maxWidth: CGFloat, font: NSFont) -> [CaptionLine] {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        return lines(for: runs, maxWidth: maxWidth) { ($0 as NSString).size(withAttributes: attributes).width }
+        lines(for: runs, maxWidth: maxWidth) { widths.width(of: $0, font: font) }
+    }
+
+    @MainActor private static var widths = WordWidthCache()
+}
+
+/// Larguras de palavras por tipo de letra (os blocos original e tradução têm tamanhos
+/// diferentes). Esvazia-se ao encher, para não crescer numa sessão longa.
+struct WordWidthCache {
+    private struct Key: Hashable {
+        var font: String
+        var size: CGFloat
+        var word: String
+    }
+
+    private var widths: [Key: CGFloat] = [:]
+    let capacity: Int
+
+    init(capacity: Int = 4_000) {
+        self.capacity = capacity
+    }
+
+    var count: Int { widths.count }
+
+    mutating func width(of word: String, font: NSFont) -> CGFloat {
+        let key = Key(font: font.fontName, size: font.pointSize, word: word)
+        if let width = widths[key] { return width }
+        if widths.count >= capacity { widths.removeAll(keepingCapacity: true) }
+        let width = (word as NSString).size(withAttributes: [.font: font]).width
+        widths[key] = width
+        return width
     }
 }

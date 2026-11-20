@@ -6,6 +6,7 @@ enum AppRelauncher {
     static func relaunch() {
         // Um processo auxiliar espera que esta instância termine antes de a reabrir;
         // se abríssemos já, o `open` limitar-se-ia a ativar a instância atual.
+        UserDefaults.standard.set(true, forKey: "resumeCaptionsAfterRelaunch")
         let bundlePath = Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
         let process = Process()

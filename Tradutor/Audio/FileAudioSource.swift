@@ -10,13 +10,17 @@ final class FileAudioSource: AudioSource {
     let realTime: Bool
     /// Silêncio acrescentado no fim, para o VAD detetar o fim da última frase.
     let trailingSilence: TimeInterval
+    /// Recomeça o ficheiro no fim, sem parar (para medir o desempenho em uso prolongado).
+    let loops: Bool
 
     private var task: Task<Void, Never>?
+    let stopError: Error? = nil
 
-    init(url: URL, realTime: Bool = true, trailingSilence: TimeInterval = 1.5) {
+    init(url: URL, realTime: Bool = true, trailingSilence: TimeInterval = 1.5, loops: Bool = false) {
         self.url = url
         self.realTime = realTime
         self.trailingSilence = trailingSilence
+        self.loops = loops
     }
 
     func start() async throws -> AsyncStream<AudioChunk> {
@@ -24,21 +28,26 @@ final class FileAudioSource: AudioSource {
         let samples = try Self.loadSamples(from: url)
             + [Float](repeating: 0, count: Int(trailingSilence * AudioChunk.sampleRate))
         let realTime = realTime
+        let loops = loops
 
         let (chunks, continuation) = AsyncStream.makeStream(of: AudioChunk.self)
         task = Task.detached {
             let chunkLength = Int(AudioChunk.sampleRate * 0.1)
             var offset = 0
+            // Amostras já entregues (o timestamp continua a crescer ao recomeçar o ficheiro).
+            var delivered = 0
             let clock = ContinuousClock()
             let start = clock.now
             while offset < samples.count, !Task.isCancelled {
                 let end = min(offset + chunkLength, samples.count)
-                let timestamp = Double(offset) / AudioChunk.sampleRate
+                let timestamp = Double(delivered) / AudioChunk.sampleRate
                 if realTime {
                     try? await clock.sleep(until: start.advanced(by: .seconds(timestamp + 0.1)))
                 }
                 continuation.yield(AudioChunk(samples: Array(samples[offset..<end]), timestamp: timestamp))
+                delivered += end - offset
                 offset = end
+                if loops, offset == samples.count { offset = 0 }
             }
             continuation.finish()
         }

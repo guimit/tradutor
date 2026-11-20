@@ -10,6 +10,12 @@ final class TranscriptionEngineProvider {
     private var engine: (any TranscriptionEngine)?
     private var engineKey: String?
     private(set) var isInUse = false
+    private let makeEngine: @MainActor (AppSettings) -> any TranscriptionEngine
+
+    /// `makeEngine` permite aos testes usar um motor falso.
+    init(makeEngine: @escaping @MainActor (AppSettings) -> any TranscriptionEngine = { $0.makeTranscriptionEngine() }) {
+        self.makeEngine = makeEngine
+    }
 
     /// Devolve o motor pronto a usar, criando-o (e descarregando o modelo) se for preciso.
     /// `progress` recebe 0…1 durante o download e 1 quando começa o carregamento.
@@ -25,7 +31,7 @@ final class TranscriptionEngineProvider {
 
         engine = nil
         engineKey = nil
-        let newEngine = settings.makeTranscriptionEngine()
+        let newEngine = makeEngine(settings)
         do {
             try await newEngine.prepare { value in
                 Task { @MainActor in progress(value) }

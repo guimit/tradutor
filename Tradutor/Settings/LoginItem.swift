@@ -18,18 +18,14 @@ struct LaunchAtLoginToggle: View {
         ))
         if status == .requiresApproval {
             HStack {
-                Text("Falta aprovar o Tradutor nos itens de início de sessão.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                SettingsNote("Falta aprovar o Tradutor nos itens de início de sessão.", kind: .warning)
                 Spacer()
                 Button("Abrir Definições do Sistema…") { SMAppService.openSystemSettingsLoginItems() }
                     .controlSize(.small)
             }
         }
         if let error {
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.red)
+            SettingsNote(error, kind: .error)
         }
     }
 

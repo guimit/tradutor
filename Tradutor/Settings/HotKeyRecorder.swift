@@ -5,6 +5,8 @@ import SwiftUI
 /// Campo para gravar um atalho global: clica-se e prime-se a combinação.
 /// Esc cancela; o botão ✕ remove o atalho.
 struct HotKeyRecorder: View {
+    /// Nome da ação, para o VoiceOver.
+    let title: String
     @Binding var hotKey: HotKey?
     let hotKeys: GlobalHotKeys
 
@@ -22,6 +24,9 @@ struct HotKeyRecorder: View {
                     .foregroundStyle(isRecording ? Color.accentColor : .primary)
             }
             .help(isRecording ? "Prime a combinação (Esc cancela)" : "Clica para gravar outro atalho")
+            .accessibilityLabel(title)
+            .accessibilityValue(isRecording ? "A gravar" : hotKey?.spokenDescription ?? "Nenhum")
+            .accessibilityHint(isRecording ? "Prime a combinação de teclas. Escape cancela." : "Ativa para gravar outro atalho.")
 
             if hotKey != nil, !isRecording {
                 Button {
@@ -31,6 +36,7 @@ struct HotKeyRecorder: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Remover atalho")
+                .accessibilityLabel("Remover o atalho de \(title)")
             }
         }
         .onDisappear { stopRecording() }

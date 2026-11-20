@@ -21,6 +21,16 @@ struct HotKey: Codable, Equatable, Sendable {
         if modifiers & UInt32(cmdKey) != 0 { result += "⌘" }
         return result + key
     }
+
+    /// Para o VoiceOver, que lê mal os símbolos (ex.: "Control Option L").
+    var spokenDescription: String {
+        var parts: [String] = []
+        if modifiers & UInt32(controlKey) != 0 { parts.append("Control") }
+        if modifiers & UInt32(optionKey) != 0 { parts.append("Option") }
+        if modifiers & UInt32(shiftKey) != 0 { parts.append("Shift") }
+        if modifiers & UInt32(cmdKey) != 0 { parts.append("Command") }
+        return (parts + [key]).joined(separator: " ")
+    }
 }
 
 extension HotKey {

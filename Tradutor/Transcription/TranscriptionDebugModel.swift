@@ -108,6 +108,8 @@ final class TranscriptionDebugModel {
             partial = (text, language)
         case .final(let text, let language, let start, let end):
             finals.append(FinalLine(text: text, language: language, start: start, end: end))
+            // Limite para uma sessão longa não crescer sem fim (a janela é de teste).
+            if finals.count > 500 { finals.removeFirst(finals.count - 500) }
             // O final substitui o parcial; o parcial seguinte trará só o que falta finalizar.
             partial = nil
         }

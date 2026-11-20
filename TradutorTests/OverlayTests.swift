@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Tradutor
@@ -153,5 +154,21 @@ struct OverlayLayoutTests {
             let frame = OverlayLayout.frame(size: size, position: position, in: area)
             #expect(area.contains(frame))
         }
+    }
+}
+
+struct WordWidthCacheTests {
+    @Test func cachesPerFontAndStaysBounded() {
+        var cache = WordWidthCache(capacity: 3)
+        let small = NSFont.systemFont(ofSize: 12)
+        let large = NSFont.systemFont(ofSize: 24)
+        let narrow = cache.width(of: "olá", font: small)
+        let wide = cache.width(of: "olá", font: large)
+        #expect(wide > narrow)
+        #expect(cache.width(of: "olá", font: small) == narrow)
+        #expect(cache.count == 2)
+        _ = cache.width(of: "mundo", font: small)
+        _ = cache.width(of: "legendas", font: small)
+        #expect(cache.count <= 3)
     }
 }

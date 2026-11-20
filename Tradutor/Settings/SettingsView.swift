@@ -60,9 +60,7 @@ private struct GeneralSettingsView: View {
             } header: {
                 Text("Atalhos de teclado")
             } footer: {
-                Text("Funcionam em qualquer app. \"Alternar o que mostrar\" passa por Só original → Só tradução → Original e tradução.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsNote("Funcionam em qualquer app. \"Alternar o que mostrar\" passa por Só original → Só tradução → Original e tradução.")
             }
         }
         .formStyle(.grouped)
@@ -71,12 +69,10 @@ private struct GeneralSettingsView: View {
     @ViewBuilder
     private func hotKeyRow(_ title: String, hotKey: Binding<HotKey?>, action: GlobalHotKeys.Action) -> some View {
         LabeledContent(title) {
-            HotKeyRecorder(hotKey: hotKey, hotKeys: appState.hotKeys)
+            HotKeyRecorder(title: title, hotKey: hotKey, hotKeys: appState.hotKeys)
         }
         if appState.hotKeys.failed.contains(action) {
-            Text("Não foi possível ativar este atalho: já está a ser usado (pelo outro atalho ou pelo sistema). Escolhe outro.")
-                .font(.caption)
-                .foregroundStyle(.red)
+            SettingsNote("Não foi possível ativar este atalho: já está a ser usado (pelo outro atalho ou pelo sistema). Escolhe outro.", kind: .error)
         }
     }
 }
@@ -93,17 +89,13 @@ private struct LanguageSettingsView: View {
                     ForEach(SourceLanguage.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
                 if settings.transcriptionEngine == .appleSpeech, settings.sourceLanguage == .auto {
-                    Text("O motor da Apple não deteta o idioma: escolhe um idioma de origem fixo (ou o WhisperKit em Motor).")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    SettingsNote("O motor da Apple não deteta o idioma: escolhe um idioma de origem fixo (ou o WhisperKit em Motor).", kind: .warning)
                 }
                 Picker("Traduzir para", selection: $settings.targetLanguage) {
                     ForEach(Language.allCases) { Text($0.displayName).tag($0) }
                 }
                 if !settings.isTranslationNeeded {
-                    Text("A origem é igual ao destino: não há tradução, mostra-se só o original.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsNote("A origem é igual ao destino: não há tradução, mostra-se só o original.")
                 }
             }
 
@@ -112,9 +104,7 @@ private struct LanguageSettingsView: View {
                     ForEach(PortugueseVariant.allCases) { Text($0.displayName).tag($0) }
                 }
             } footer: {
-                Text("Afeta a tradução para português (ex.: \"autocarro\" ou \"ônibus\") e orienta a transcrição.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsNote("Afeta a tradução para português (ex.: \"autocarro\" ou \"ônibus\") e orienta a transcrição.")
             }
         }
         .formStyle(.grouped)
@@ -141,12 +131,14 @@ private struct AppearanceSettingsView: View {
                 } maximumValueLabel: {
                     Image(systemName: "textformat.size.larger")
                 }
-                valueLabel("\(Int(settings.overlayFontSize)) pt")
+                .accessibilityValue("\(Int(settings.overlayFontSize)) pontos")
+                SettingsValueLabel("\(Int(settings.overlayFontSize)) pt")
 
                 Slider(value: $settings.overlayBackgroundOpacity, in: 0...1) {
                     Text("Opacidade do fundo")
                 }
-                valueLabel("\(Int(settings.overlayBackgroundOpacity * 100)) %")
+                .accessibilityValue("\(Int(settings.overlayBackgroundOpacity * 100)) por cento")
+                SettingsValueLabel("\(Int(settings.overlayBackgroundOpacity * 100)) %")
 
                 Stepper(value: $settings.overlayLineCount, in: AppSettings.lineCountRange) {
                     Text("Linhas: \(settings.overlayLineCount)")
@@ -155,7 +147,8 @@ private struct AppearanceSettingsView: View {
                 Slider(value: $settings.overlayHideDelay, in: AppSettings.hideDelayRange, step: 1) {
                     Text("Esconder após silêncio")
                 }
-                valueLabel("\(Int(settings.overlayHideDelay)) s")
+                .accessibilityValue("\(Int(settings.overlayHideDelay)) segundos")
+                SettingsValueLabel("\(Int(settings.overlayHideDelay)) s")
             }
 
             Section("Posição") {
@@ -178,21 +171,13 @@ private struct AppearanceSettingsView: View {
                         appState.overlay.resetPosition()
                     }
                 }
-                Text("No modo de ajuste, arrasta a caixa das legendas para onde quiseres. A posição fica guardada.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsNote("No modo de ajuste, arrasta a caixa das legendas para onde quiseres. A posição fica guardada.")
             }
         }
         .formStyle(.grouped)
         .onDisappear { appState.overlay.setEditing(false) }
     }
 
-    private func valueLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-    }
 }
 
 // MARK: - Motor
@@ -213,18 +198,12 @@ private struct EngineSettingsView: View {
                         ForEach(WhisperModel.allCases) { Text($0.displayName).tag($0) }
                     }
                     if !WhisperModelStore.isDownloaded(settings.whisperModel) {
-                        Text("Este modelo ainda não está no Mac: é descarregado (\(settings.whisperModel.approximateSize)) ao iniciar as legendas.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsNote("Este modelo ainda não está no Mac: é descarregado (\(settings.whisperModel.approximateSize)) ao iniciar as legendas.")
                     }
                 } else {
-                    Text("Usa o reconhecimento de fala do macOS. O modelo de cada idioma é descarregado pelo sistema ao iniciar.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    SettingsNote("Usa o reconhecimento de fala do macOS. O modelo de cada idioma é descarregado pelo sistema ao iniciar.")
                     if settings.sourceLanguage == .auto {
-                        Text("Não deteta o idioma: escolhe um idioma de origem fixo em Idiomas.")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                        SettingsNote("Não deteta o idioma: escolhe um idioma de origem fixo em Idiomas.", kind: .warning)
                     }
                 }
             }
@@ -234,9 +213,7 @@ private struct EngineSettingsView: View {
                     ForEach(TranslationEngineKind.allCases) { Text($0.displayName).tag($0) }
                 }
                 if settings.translationEngine.isCloud {
-                    Text("Este motor envia o texto transcrito para um serviço externo e ainda não está implementado.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    SettingsNote("Este motor envia o texto transcrito para um serviço externo e ainda não está implementado.", kind: .warning)
                 }
             }
 
@@ -252,9 +229,7 @@ private struct EngineSettingsView: View {
             } header: {
                 Text("Chaves de API (motores cloud)")
             } footer: {
-                Text("Guardadas no Keychain ao carregar em Enter. Deixa vazio e carrega em Enter para apagar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsNote("Guardadas no Keychain ao carregar em Enter. Deixa vazio e carrega em Enter para apagar.")
             }
         }
         .formStyle(.grouped)
@@ -275,19 +250,15 @@ private struct AdvancedSettingsView: View {
         Form {
             Section("Debug") {
                 Toggle("Mostrar latência no overlay", isOn: $settings.showLatency)
-                Text("Fala → original → tradução, medida em cada frase.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                SettingsNote("Fala → original → tradução, medida em cada frase.")
             }
 
             Section("Avisos") {
                 Slider(value: $settings.silenceWarningDelay, in: AppSettings.silenceWarningRange, step: 5) {
                     Text("Avisar sem áudio após")
                 }
-                Text("\(Int(settings.silenceWarningDelay)) s")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityValue("\(Int(settings.silenceWarningDelay)) segundos")
+                SettingsValueLabel("\(Int(settings.silenceWarningDelay)) s")
             }
 
             Section("Ferramentas") {
@@ -298,5 +269,58 @@ private struct AdvancedSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+// MARK: - Componentes
+
+/// Nota curta por baixo de um controlo. Avisos e erros levam um ícone colorido e o texto
+/// na cor normal: texto laranja ou vermelho em letra pequena não tem contraste suficiente.
+struct SettingsNote: View {
+    enum Kind {
+        case info, warning, error
+    }
+
+    let text: String
+    var kind: Kind = .info
+
+    init(_ text: String, kind: Kind = .info) {
+        self.text = text
+        self.kind = kind
+    }
+
+    var body: some View {
+        switch kind {
+        case .info:
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .warning, .error:
+            Label {
+                Text(text)
+            } icon: {
+                Image(systemName: kind == .error ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(kind == .error ? .red : .orange)
+                    .accessibilityLabel(kind == .error ? "Erro" : "Aviso")
+            }
+            .font(.caption)
+        }
+    }
+}
+
+/// Valor de um slider, alinhado à direita. Escondido do VoiceOver: o slider já o anuncia.
+struct SettingsValueLabel: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityHidden(true)
     }
 }

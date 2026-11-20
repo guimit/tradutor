@@ -38,16 +38,12 @@ struct TranslationLanguagesView: View {
                 }
             }
             if let error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                SettingsNote(error, kind: .error)
             }
         } header: {
             Text("Idiomas no dispositivo")
         } footer: {
-            Text("Os idiomas também se gerem em Definições do Sistema › Geral › Idioma e Região › Idiomas da tradução.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            SettingsNote("Os idiomas também se gerem em Definições do Sistema › Geral › Idioma e Região › Idiomas da tradução.")
         }
         .task(id: portugueseVariant) { await refresh() }
         .translationTask(configuration) { session in
@@ -79,6 +75,7 @@ struct TranslationLanguagesView: View {
                 ProgressView().controlSize(.small)
                 Text("A descarregar…").foregroundStyle(.secondary)
             }
+            .accessibilityElement(children: .combine)
         } else {
             switch statuses[pair] {
             case .ready?:
@@ -91,6 +88,7 @@ struct TranslationLanguagesView: View {
                 Text("Não suportado").foregroundStyle(.secondary)
             case nil:
                 ProgressView().controlSize(.small)
+                    .accessibilityLabel("A verificar")
             }
         }
     }

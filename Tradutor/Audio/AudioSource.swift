@@ -16,6 +16,9 @@ protocol AudioSource: AnyObject {
 
     /// Para a captação e termina o stream. Pode ser chamado mais do que uma vez.
     func stop() async
+
+    /// Erro que fez a captação parar sozinha; `nil` se parou com `stop()` ou chegou ao fim.
+    var stopError: Error? { get }
 }
 
 enum AudioSourceError: LocalizedError {
